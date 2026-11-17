@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 type Task = {
@@ -9,33 +9,41 @@ type Task = {
   status: "pending" | "completed";
 };
 
-function App() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: "Learn React",
-      description: "Practice React hooks and components",
-      status: "pending",
-    },
-    {
-      id: 2,
-      title: "Complete To-Do Project",
-      description: "Build frontend and connect backend",
-      status: "completed",
-    },
-    {
-      id: 3,
-      title: "Practice TypeScript",
-      description: "Learn interfaces and types",
-      status: "pending",
-    },
-  ]);
+const API_URL = "https://todo-list-project-two-beta.vercel.app/api/tasks";
 
+function App() {
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch tasks from database
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+
+      const response = await fetch(API_URL);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to fetch tasks");
+      }
+
+      setTasks(result.data || []);
+    } catch (error) {
+      console.error("Fetch error:", error);
+      alert("Unable to fetch tasks. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
 
   const completedCount = tasks.filter(
     (task) => task.status === "completed"
@@ -44,9 +52,9 @@ function App() {
   const pendingCount = tasks.length - completedCount;
 
   const filteredTasks = tasks.filter((task) => {
-    const matchesSearch = task.title
-      .toLowerCase()
-      .includes(search.toLowerCase());
+    const matchesSearch =
+      task.title.toLowerCase().includes(search.toLowerCase()) ||
+      task.description.toLowerCase().includes(search.toLowerCase());
 
     const matchesFilter =
       filter === "all" || task.status === filter;
@@ -54,48 +62,99 @@ function App() {
     return matchesSearch && matchesFilter;
   });
 
-  const addTask = () => {
+  // Add task to database
+  const addTask = async () => {
     if (!title.trim()) {
       alert("Please enter task title");
       return;
     }
 
-    const newTask: Task = {
-      id: Date.now(),
-      title,
-      description,
-      status: "pending",
-    };
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+        }),
+      });
 
-    setTasks([...tasks, newTask]);
-    setTitle("");
-    setDescription("");
-    setShowForm(false);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to add task");
+      }
+
+      setTitle("");
+      setDescription("");
+      setShowForm(false);
+
+      await fetchTasks();
+      alert("Task added successfully!");
+    } catch (error) {
+      console.error("Add task error:", error);
+      alert("Unable to add task. Please try again.");
+    }
   };
 
-  const toggleTask = (id: number) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id
-          ? {
-              ...task,
-              status:
-                task.status === "pending"
-                  ? "completed"
-                  : "pending",
-            }
-          : task
-      )
-    );
+  // Update task status in database
+  const toggleTask = async (task: Task) => {
+    const newStatus =
+      task.status === "pending" ? "completed" : "pending";
+
+    try {
+      const response = await fetch(`${API_URL}/${task.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to update task");
+      }
+
+      await fetchTasks();
+    } catch (error) {
+      console.error("Update error:", error);
+      alert("Unable to update task. Please try again.");
+    }
   };
 
-  const deleteTask = (id: number) => {
-    setTasks(tasks.filter((task) => task.id !== id));
+  // Delete task from database
+  const deleteTask = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this task?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/${id}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to delete task");
+      }
+
+      await fetchTasks();
+      alert("Task deleted successfully!");
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Unable to delete task. Please try again.");
+    }
   };
 
   return (
     <div className="dashboard">
-
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="brand">
@@ -149,7 +208,6 @@ function App() {
 
       {/* Main Content */}
       <main className="main-content">
-
         <header className="topbar">
           <div>
             <p className="welcome">WELCOME BACK 👋</p>
@@ -169,7 +227,6 @@ function App() {
 
         {/* Statistics */}
         <section className="stats-grid">
-
           <div className="stat-card">
             <div className="stat-icon purple">▦</div>
             <p>Total Tasks</p>
@@ -190,12 +247,10 @@ function App() {
             <h2>{completedCount}</h2>
             <small>Successfully completed</small>
           </div>
-
         </section>
 
         {/* Task Section */}
         <section className="task-section">
-
           <div className="section-header">
             <div>
               <h2>My Tasks</h2>
@@ -261,8 +316,11 @@ function App() {
 
           {/* Task List */}
           <div className="task-list">
-
-            {filteredTasks.length === 0 ? (
+            {loading ? (
+              <div className="empty-state">
+                <h3>Loading tasks...</h3>
+              </div>
+            ) : filteredTasks.length === 0 ? (
               <div className="empty-state">
                 <span>📋</span>
                 <h3>No tasks found</h3>
@@ -271,21 +329,24 @@ function App() {
             ) : (
               filteredTasks.map((task) => (
                 <div className="task-card" key={task.id}>
-
                   <button
                     className={`task-check ${
                       task.status === "completed" ? "checked" : ""
                     }`}
-                    onClick={() => toggleTask(task.id)}
+                    onClick={() => toggleTask(task)}
                     aria-label="Toggle task status"
                   >
                     {task.status === "completed" ? "✓" : ""}
                   </button>
 
                   <div className="task-details">
-                    <h3 className={
-                      task.status === "completed" ? "completed-title" : ""
-                    }>
+                    <h3
+                      className={
+                        task.status === "completed"
+                          ? "completed-title"
+                          : ""
+                      }
+                    >
                       {task.title}
                     </h3>
                     <p>{task.description}</p>
@@ -302,19 +363,13 @@ function App() {
                   >
                     ✕
                   </button>
-
                 </div>
               ))
             )}
-
           </div>
-
         </section>
 
-        <footer>
-          Made with care · TaskFlow
-        </footer>
-
+        <footer>Made with care · TaskFlow</footer>
       </main>
     </div>
   );
