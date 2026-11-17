@@ -5,11 +5,12 @@ import "./App.css";
 type Task = {
   id: number;
   title: string;
-  description: string;
+  description: string | null;
   status: "pending" | "completed";
 };
 
-const API_URL = "https://todo-list-project-two-beta.vercel.app/api/tasks";
+const API_URL =
+  "https://todo-list-project-two-beta.vercel.app/api/tasks";
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -32,7 +33,12 @@ function App() {
         throw new Error(result.message || "Failed to fetch tasks");
       }
 
-      setTasks(result.data || []);
+      setTasks(
+        (result.data || []).map((task: Task) => ({
+          ...task,
+          description: task.description || "",
+        }))
+      );
     } catch (error) {
       console.error("Fetch error:", error);
       alert("Unable to fetch tasks. Please try again.");
@@ -45,16 +51,20 @@ function App() {
     fetchTasks();
   }, []);
 
+  // Task statistics
   const completedCount = tasks.filter(
     (task) => task.status === "completed"
   ).length;
 
   const pendingCount = tasks.length - completedCount;
 
+  // Search and filter
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
-      task.title.toLowerCase().includes(search.toLowerCase()) ||
-      task.description.toLowerCase().includes(search.toLowerCase());
+      (task.title || "").toLowerCase().includes(search.toLowerCase()) ||
+      (task.description || "")
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
     const matchesFilter =
       filter === "all" || task.status === filter;
@@ -111,6 +121,8 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          title: task.title,
+          description: task.description || "",
           status: newStatus,
         }),
       });
@@ -349,6 +361,7 @@ function App() {
                     >
                       {task.title}
                     </h3>
+
                     <p>{task.description}</p>
                   </div>
 
